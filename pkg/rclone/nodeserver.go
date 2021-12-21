@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
@@ -31,6 +30,12 @@ type mountPoint struct {
 	VolumeId  string
 	MountPath string
 }
+
+const (
+	default_remote      = "s3"
+	default_s3_provider = "Minio"
+	default_secret_name = "rclone-secret"
+)
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.Infof("NodePublishVolume: called with args %+v", *req)
@@ -75,42 +80,41 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	// Load default connection settings from secret
-	secret, e := getSecret("rclone-secret")
-
-	remote, remotePath, flags, e := extractFlags(req.GetVolumeContext(), secret)
-	if e != nil {
-		klog.Warningf("storage parameter error: %s", e)
-		return nil, e
+	secrets := req.GetSecrets()
+	if secrets == nil || len(secrets) == 0 {
+		secrets, err = getSecrets(default_secret_name)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to retrieve secret rclone-secret: %v", err.Error())
+		}
+	}
+	remote, remotePath, flags, err := extractFlags(req.VolumeId, req.GetVolumeContext(), secrets)
+	if err != nil {
+		klog.Warningf("storage parameter error: %s", err)
+		return nil, err
 	}
 
-	e = Mount(remote, remotePath, targetPath, flags)
-	if e != nil {
-		if os.IsPermission(e) {
-			return nil, status.Error(codes.PermissionDenied, e.Error())
+	err = Mount(remote, remotePath, targetPath, flags)
+	if err != nil {
+		if os.IsPermission(err) {
+			return nil, status.Error(codes.PermissionDenied, err.Error())
 		}
-		if strings.Contains(e.Error(), "invalid argument") {
-			return nil, status.Error(codes.InvalidArgument, e.Error())
+		if strings.Contains(err.Error(), "invalid argument") {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
-		return nil, status.Error(codes.Internal, e.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func extractFlags(volumeContext map[string]string, secret *v1.Secret) (string, string, map[string]string, error) {
+func extractFlags(volId string, volumeContext map[string]string, secrets map[string]string) (string, string, map[string]string, error) {
 
 	// Empty argument list
 	flags := make(map[string]string)
 
-	// Secret values are default, gets merged and overriden by corresponding PV values
-	if secret != nil && secret.Data != nil && len(secret.Data) > 0 {
-
-		// Needs byte to string casting for map values
-		for k, v := range secret.Data {
-			flags[k] = string(v)
-		}
-	} else {
-		klog.Infof("No csi-rclone connection defaults secret found.")
+	// Needs byte to string casting for map values
+	for k, v := range secrets {
+		flags[k] = v
 	}
 
 	if len(volumeContext) > 0 {
@@ -119,12 +123,15 @@ func extractFlags(volumeContext map[string]string, secret *v1.Secret) (string, s
 		}
 	}
 
-	if e := validateFlags(flags); e != nil {
-		return "", "", flags, e
-	}
+	//if e := validateFlags(flags); e != nil {
+	//	return "", "", flags, e
+	//}
 
 	remote := flags["remote"]
-	remotePath := flags["remotePath"]
+	if remote == "" {
+		remote = default_remote
+	}
+	remotePath := volId
 
 	if remotePathSuffix, ok := flags["remotePathSuffix"]; ok {
 		remotePath = remotePath + remotePathSuffix
@@ -132,7 +139,6 @@ func extractFlags(volumeContext map[string]string, secret *v1.Secret) (string, s
 	}
 
 	delete(flags, "remote")
-	delete(flags, "remotePath")
 
 	return remote, remotePath, flags, nil
 }
@@ -185,13 +191,10 @@ func validateFlags(flags map[string]string) error {
 	if _, ok := flags["remote"]; !ok {
 		return status.Errorf(codes.InvalidArgument, "missing volume context value: remote")
 	}
-	if _, ok := flags["remotePath"]; !ok {
-		return status.Errorf(codes.InvalidArgument, "missing volume context value: remotePath")
-	}
 	return nil
 }
 
-func getSecret(secretName string) (*v1.Secret, error) {
+func getSecrets(secretName string) (map[string]string, error) {
 	clientset, e := GetK8sClient()
 	if e != nil {
 		return nil, status.Errorf(codes.Internal, "can not create kubernetes client: %s", e)
@@ -204,7 +207,7 @@ func getSecret(secretName string) (*v1.Secret, error) {
 
 	namespace, _, err := kubeconfig.Namespace()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "can't get current namespace, error %s", secretName, err)
+		return nil, status.Errorf(codes.Internal, "can't get current namespace, error %s", err)
 	}
 
 	klog.Infof("Loading csi-rclone connection defaults from secret %s/%s", namespace, secretName)
@@ -217,21 +220,35 @@ func getSecret(secretName string) (*v1.Secret, error) {
 		return nil, status.Errorf(codes.Internal, "can't load csi-rclone settings from secret %s: %s", secretName, e)
 	}
 
-	return secret, nil
+	// Secret values are default, gets merged and overriden by corresponding PV values
+	secrets := map[string]string{}
+	if secret != nil && secret.Data != nil && len(secret.Data) > 0 {
+		for k, v := range secret.Data {
+			secrets[k] = string(v)
+		}
+	} else {
+		klog.Infof("No csi-rclone connection defaults secret found.")
+	}
+
+	return secrets, nil
 }
 
 // Mount routine.
+// file distrubute across pods/nodes mount ok, not folder (working with fuse dev presented pod), mc cp local folder not working
 func Mount(remote string, remotePath string, targetPath string, flags map[string]string) error {
 	mountCmd := "rclone"
 	mountArgs := []string{}
 
 	defaultFlags := map[string]string{}
-	defaultFlags["cache-info-age"] = "72h"
-	defaultFlags["cache-chunk-clean-interval"] = "15m"
+	//defaultFlags["cache-info-age"] = "72h"
+	//defaultFlags["cache-chunk-clean-interval"] = "15m"
 	defaultFlags["dir-cache-time"] = "5s"
-	defaultFlags["vfs-cache-mode"] = "writes"
+	//defaultFlags["poll-interval"] = "500ms" not supported with minio
+	defaultFlags["vfs-cache-mode"] = "minimal"
 	defaultFlags["allow-non-empty"] = "true"
-	defaultFlags["allow-other"] = "true"
+	defaultFlags["allow-other"] = "true" // wide open
+	//defaultFlags["log-level"] = "ERROR"
+	//defaultFlags["log-file"] = "/var/log/rclone.log"
 
 	// rclone mount remote:path /path/to/mountpoint [flags]
 
@@ -241,6 +258,8 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 		fmt.Sprintf(":%s:%s", remote, remotePath),
 		targetPath,
 		"--daemon",
+		"--no-check-certificate",
+		"--no-modtime",
 	)
 
 	// Add default flags
@@ -251,18 +270,24 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 		}
 	}
 
-	// Add user supplied flags
+	// Add user supplied flags,
+	/* generic fs mounting
 	for k, v := range flags {
 		mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", k, v))
-	}
+	}*/
+	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-provider", flags["s3-provider"]))
+	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-access-key-id", flags["s3-access-key-id"]))
+	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-secret-access-key", flags["s3-secret-access-key"]))
+	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-endpoint", flags["s3-endpoint"]))
 
 	// create target, os.Mkdirall is noop if it exists
-	err := os.MkdirAll(targetPath, 0750)
+	err := os.MkdirAll(targetPath, 2775) // use 750
 	if err != nil {
 		return err
 	}
 
 	klog.Infof("executing mount command cmd=%s, remote=:%s:%s, targetpath=%s", mountCmd, remote, remotePath, targetPath)
+	klog.Infof("args=%s", strings.Join(mountArgs, " "))
 
 	out, err := exec.Command(mountCmd, mountArgs...).CombinedOutput()
 	if err != nil {

@@ -29,7 +29,7 @@ func NewDriver(nodeID, endpoint string) *driver {
 
 	d.csiDriver = csicommon.NewCSIDriver(DriverName, DriverVersion, nodeID)
 	d.csiDriver.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER})
-	d.csiDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{csi.ControllerServiceCapability_RPC_UNKNOWN})
+	d.csiDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME})
 
 	return d
 }
@@ -44,7 +44,7 @@ func (d *driver) Run() {
 	s := csicommon.NewNonBlockingGRPCServer()
 	s.Start(d.endpoint,
 		csicommon.NewDefaultIdentityServer(d.csiDriver),
-		csicommon.NewDefaultControllerServer(d.csiDriver),
+		NewRcloneControllerServer(d.csiDriver),
 		NewNodeServer(d))
 	s.Wait()
 }
