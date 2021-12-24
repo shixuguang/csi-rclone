@@ -57,14 +57,17 @@ func (cs *RcloneControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, e
 	}
 
-	if err := createVolumeMc(remote, remotePath, flags); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create volume %s: %v", name, err.Error())
-	}
+	// extra info for volume deletion can be saved in cm
+
+	/*
+		if err := createVolumeMc(remote, remotePath, flags); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create volume %s: %v", name, err.Error())
+		}*/
 
 	// policy set doesn't work
-	// if err := volumeOperation("mkdir", remote, name, parameters); err != nil {
-	//		return nil, status.Errorf(codes.Internal, "failed to create volume %s: %v", name, err.Error())
-	//	}
+	if err := volumeOperation("mkdir", remote, remotePath, flags); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create volume %s: %v", name, err.Error())
+	}
 
 	vol := &csi.Volume{
 		CapacityBytes: 0, // by setting it to zero, Provisioner will use PVC requested size as PV size
@@ -77,6 +80,7 @@ func (cs *RcloneControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 func (cs *RcloneControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.Infof("DeleteVolume: called with args %+v", *req)
+	// secrets maybe shuffled after a while
 	secrets := req.GetSecrets()
 	if secrets == nil || len(secrets) == 0 {
 		klog.Infof("provision secret not avaliable, using default")
@@ -87,15 +91,21 @@ func (cs *RcloneControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		}
 	}
 
-	parameters := map[string]string{
-		"s3-access-key-id":     string(secrets["s3-access-key-id"]),
-		"s3-endpoint":          string(secrets["s3-endpoint"]),
-		"s3-secret-access-key": string(secrets["s3-secret-access-key"]),
-		"s3-provider":          default_s3_provider,
+	// those not available in volumeattributes can be retrieved from cm created at provision
+
+	flags := map[string]string{
+		"remote":      default_remote,
+		"s3-provider": default_s3_provider,
+	}
+
+	remote, remotePath, flags, e := extractFlags(req.GetVolumeId(), flags, secrets)
+	if e != nil {
+		klog.Warningf("storage parameter error: %s", e)
+		return nil, e
 	}
 
 	volId := req.GetVolumeId()
-	if err := volumeOperation("purge", default_remote, volId, parameters); err != nil {
+	if err := volumeOperation("purge", remote, remotePath, flags); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create volume %s: %v", volId, err.Error())
 	}
 

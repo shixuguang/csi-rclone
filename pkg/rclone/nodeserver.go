@@ -139,6 +139,8 @@ func extractFlags(volId string, volumeContext map[string]string, secrets map[str
 	}
 
 	delete(flags, "remote")
+	// remove csiProvisionerID added by provisioner
+	delete(flags, "storage.kubernetes.io/csiProvisionerIdentity")
 
 	return remote, remotePath, flags, nil
 }
@@ -240,6 +242,7 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 	mountArgs := []string{}
 
 	defaultFlags := map[string]string{}
+	// use defaults
 	//defaultFlags["cache-info-age"] = "72h"
 	//defaultFlags["cache-chunk-clean-interval"] = "15m"
 	defaultFlags["dir-cache-time"] = "5s"
@@ -247,6 +250,7 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 	defaultFlags["vfs-cache-mode"] = "minimal"
 	defaultFlags["allow-non-empty"] = "true"
 	defaultFlags["allow-other"] = "true" // wide open
+	// helpful flags
 	//defaultFlags["log-level"] = "ERROR"
 	//defaultFlags["log-file"] = "/var/log/rclone.log"
 
@@ -271,14 +275,9 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 	}
 
 	// Add user supplied flags,
-	/* generic fs mounting
 	for k, v := range flags {
 		mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", k, v))
-	}*/
-	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-provider", flags["s3-provider"]))
-	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-access-key-id", flags["s3-access-key-id"]))
-	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-secret-access-key", flags["s3-secret-access-key"]))
-	mountArgs = append(mountArgs, fmt.Sprintf("--%s=%s", "s3-endpoint", flags["s3-endpoint"]))
+	}
 
 	// create target, os.Mkdirall is noop if it exists
 	err := os.MkdirAll(targetPath, 2775) // use 750
