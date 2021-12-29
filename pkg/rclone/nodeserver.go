@@ -117,6 +117,8 @@ func extractFlags(volId string, volumeContext map[string]string, secrets map[str
 		flags[k] = v
 	}
 
+	// blindly use of volumeContext as remote flags is no good, content is dynamic, may contain kube added info, i.e. driver info, mounting pod info(i.e. for fsgroup support in driver) if
+	// podInfoOnMount enabled in CSIDriver object (if created)
 	if len(volumeContext) > 0 {
 		for k, v := range volumeContext {
 			flags[k] = v
@@ -295,4 +297,9 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 	}
 
 	return nil
+}
+
+// NodeExpandVolume node expand volume
+func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
 }

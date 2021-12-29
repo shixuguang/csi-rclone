@@ -192,3 +192,21 @@ func createVolumeMc(remote string, remotePath string, flags map[string]string) e
 
 	return nil
 }
+
+// determined by attachRequired flag in CSIDriver(storage.k8s.io/v1) object, and if not created by ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME, actual call triggered from master controller
+func (cs *RcloneControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func (cs *RcloneControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+// support of csi 1.5 spec
+func (cs *RcloneControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func (cs *RcloneControllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}

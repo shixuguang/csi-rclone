@@ -3,7 +3,7 @@ module github.com/wunderio/csi-rclone
 go 1.15
 
 require (
-	github.com/container-storage-interface/spec v1.0.0
+	github.com/container-storage-interface/spec v1.5.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
@@ -32,10 +32,9 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stretchr/objx v0.1.1 // indirect
 	github.com/stretchr/testify v1.3.0 // indirect
-	golang.org/x/crypto v0.0.0-20190222235706-ffb98f73852f // indirect
-	golang.org/x/net v0.0.0-20190213061140-3a22650c66bd
+	golang.org/x/net v0.0.0-20190311183353-d8887717615a
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
-	google.golang.org/grpc v1.18.0
+	google.golang.org/grpc v1.26.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 	k8s.io/api v0.0.0-20190111032252-67edc246be36
