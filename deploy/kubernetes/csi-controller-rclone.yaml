@@ -1,11 +1,8 @@
-# This YAML file contains attacher & csi driver API objects that are necessary
-# to run external CSI attacher for rclone
-
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
   name: csi-controller-rclone
-  namespace: csi-rclone
+  namespace: minio
 spec:
   serviceName: "csi-controller-rclone"
   replicas: 1
@@ -18,7 +15,39 @@ spec:
         app: csi-controller-rclone
     spec:
       serviceAccountName: csi-controller-rclone
+      #hostNetwork: true
+      #dnsPolicy: ClusterFirstWithHostNet
       containers:
+        - name: csi-provisioner
+          image: gcr.io/k8s-staging-sig-storage/csi-provisioner:canary
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--leader-election"
+            - "--http-endpoint=:8080"
+          env:
+            - name: ADDRESS
+              value: /plugin/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /plugin
+          ports:
+            - containerPort: 8080
+              name: http-endpoint
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 1
+            httpGet:
+              path: /healthz/leader-election
+              port: http-endpoint
+            initialDelaySeconds: 10
+            timeoutSeconds: 10
+            periodSeconds: 20
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
         - name: csi-attacher
           image: quay.io/k8scsi/csi-attacher:v1.1.1
           args:
@@ -26,11 +55,11 @@ spec:
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: /plugin/csi.sock
           imagePullPolicy: "Always"
           volumeMounts:
             - name: socket-dir
-              mountPath: /csi
+              mountPath: /plugin
         - name: csi-cluster-driver-registrar
           image: quay.io/k8scsi/csi-cluster-driver-registrar:v1.0.1
           args:
@@ -39,12 +68,12 @@ spec:
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: /plugin/csi.sock
           volumeMounts:
             - name: socket-dir
-              mountPath: /csi
+              mountPath: /plugin
         - name: rclone
-          image: wunderio/csi-rclone:v1.2.8
+          image: hyc-cp4d-releng-team-andrew-docker-local.artifactory.swg-devops.com/csi-rclone:ss
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"

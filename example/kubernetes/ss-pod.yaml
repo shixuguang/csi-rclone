@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ss-pod
+spec:
+  volumes:
+    - name: ss-pv-volume
+      persistentVolumeClaim:
+        claimName: ss-pvc
+  containers:
+    - name: ss-pv-container
+      image: nginx
+      ports:
+        - containerPort: 80
+          name: "http-server"
+      volumeMounts:
+        - mountPath: "/usr/share/nginx/html"
+          name: ss-pv-volume

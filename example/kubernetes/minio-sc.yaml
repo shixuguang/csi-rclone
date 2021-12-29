@@ -1,8 +1,10 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: csi-rclone 
+  name: csi-minio 
 provisioner: csi-rclone
 parameters:
   remote: s3
   s3-provider: Minio
+  csi.storage.k8s.io/secret-name: minio-secret
+  csi.storage.k8s.io/secret-namespace: minio
