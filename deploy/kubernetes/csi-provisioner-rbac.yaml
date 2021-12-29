@@ -85,8 +85,9 @@ metadata:
 rules:
 # Only one of the following rules for endpoints or leases is required based on
 # what is set for `--leader-election-type`. Endpoints are deprecated in favor of Leases.
+# secrets needed for supporting kube built-in csi secrets from storageclass 
 - apiGroups: [""]
-  resources: ["endpoints"]
+  resources: ["endpoints", "secrets"] 
   verbs: ["get", "watch", "list", "delete", "update", "create"]
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
