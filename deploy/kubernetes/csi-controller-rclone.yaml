@@ -15,6 +15,7 @@ spec:
         app: csi-controller-rclone
     spec:
       serviceAccountName: csi-controller-rclone
+      # for possible pod info in controller
       #hostNetwork: true
       #dnsPolicy: ClusterFirstWithHostNet
       containers:
@@ -43,11 +44,12 @@ spec:
             initialDelaySeconds: 10
             timeoutSeconds: 10
             periodSeconds: 20
-          securityContext:
-            privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
-            allowPrivilegeEscalation: true
+          # for possible pod info in controller, needed by fusermount
+          #securityContext:
+          #  privileged: true
+          #  capabilities:
+          #    add: ["SYS_ADMIN"]
+          #  allowPrivilegeEscalation: true
         - name: csi-attacher
           image: quay.io/k8scsi/csi-attacher:v1.1.1
           args:
