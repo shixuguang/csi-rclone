@@ -4,5 +4,3 @@ metadata:
   name: csi-rclone 
 provisioner: csi-rclone
 parameters:
-  remote: s3
-  s3-provider: Minio

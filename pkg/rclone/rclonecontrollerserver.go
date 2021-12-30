@@ -91,14 +91,7 @@ func (cs *RcloneControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		}
 	}
 
-	// those not available in volumeattributes can be retrieved from cm created at provision
-
-	flags := map[string]string{
-		"remote":      default_remote,
-		"s3-provider": default_s3_provider,
-	}
-
-	remote, remotePath, flags, e := extractFlags(req.GetVolumeId(), flags, secrets)
+	remote, remotePath, flags, e := extractFlags(req.GetVolumeId(), map[string]string{}, secrets)
 	if e != nil {
 		klog.Warningf("storage parameter error: %s", e)
 		return nil, e

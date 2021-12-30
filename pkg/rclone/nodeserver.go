@@ -32,8 +32,6 @@ type mountPoint struct {
 }
 
 const (
-	default_remote      = "s3"
-	default_s3_provider = "Minio"
 	default_secret_name = "rclone-secret"
 )
 
@@ -87,7 +85,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			return nil, status.Errorf(codes.Internal, "failed to retrieve secret rclone-secret: %v", err.Error())
 		}
 	}
-	remote, remotePath, flags, err := extractFlags(req.VolumeId, req.GetVolumeContext(), secrets)
+	remote, remotePath, flags, err := extractFlags(req.VolumeId /*req.GetVolumeContext()*/, map[string]string{}, secrets)
 	if err != nil {
 		klog.Warningf("storage parameter error: %s", err)
 		return nil, err
@@ -130,9 +128,6 @@ func extractFlags(volId string, volumeContext map[string]string, secrets map[str
 	//}
 
 	remote := flags["remote"]
-	if remote == "" {
-		remote = default_remote
-	}
 	remotePath := volId
 
 	if remotePathSuffix, ok := flags["remotePathSuffix"]; ok {
@@ -142,7 +137,7 @@ func extractFlags(volId string, volumeContext map[string]string, secrets map[str
 
 	delete(flags, "remote")
 	// remove csiProvisionerID added by provisioner
-	delete(flags, "storage.kubernetes.io/csiProvisionerIdentity")
+	//delete(flags, "storage.kubernetes.io/csiProvisionerIdentity")
 
 	return remote, remotePath, flags, nil
 }
