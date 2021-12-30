@@ -247,6 +247,9 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 	defaultFlags["vfs-cache-mode"] = "minimal"
 	defaultFlags["allow-non-empty"] = "true"
 	defaultFlags["allow-other"] = "true" // wide open
+	// enable execution bits
+	defaultFlags["file-perms"] = "0777"
+	defaultFlags["dir-perms"] = "0777"
 	// helpful flags
 	//defaultFlags["log-level"] = "ERROR"
 	//defaultFlags["log-file"] = "/var/log/rclone.log"
