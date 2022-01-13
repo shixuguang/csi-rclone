@@ -226,12 +226,12 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 	mountArgs := []string{}
 
 	defaultFlags := map[string]string{}
-	defaultFlags["cache-info-age"] = "72h"
-	defaultFlags["cache-chunk-clean-interval"] = "15m"
 	defaultFlags["dir-cache-time"] = "5s"
-	defaultFlags["vfs-cache-mode"] = "writes"
+	defaultFlags["vfs-cache-mode"] = "minimal"
 	defaultFlags["allow-non-empty"] = "true"
 	defaultFlags["allow-other"] = "true"
+	defaultFlags["file-perms"] = "0777"
+	defaultFlags["dir-perms"] = "0777"
 
 	// rclone mount remote:path /path/to/mountpoint [flags]
 
@@ -241,6 +241,7 @@ func Mount(remote string, remotePath string, targetPath string, flags map[string
 		fmt.Sprintf(":%s:%s", remote, remotePath),
 		targetPath,
 		"--daemon",
+		"--no-check-certificate",
 	)
 
 	// Add default flags
